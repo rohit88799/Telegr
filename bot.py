@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 TELEGRAM_TOKEN = "9200127015:AAH728H-TxkVpuqCshxFF190mydK4HuxdEo"
 GEMINI_API_KEY = "gen-lang-client-0546027036"
-RENDER_URL = "https://YOUR-RENDER-APP-NAME.onrender.com"
+RENDER_URL = "https://dashboard.render.com"
 
 YOUR_PERSONALITY = """
 You are a Telegram chatbot modeled after your creator's personality.
