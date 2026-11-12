@@ -1,16 +1,17 @@
 import os
 import time
-from flask import Flask
+from flask import Flask, request
 from google import genai
 from google.genai import types
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# --- 1. PASTE YOUR KEYS HERE ---
 TELEGRAM_TOKEN = "9200127015:AAH728H-TxkVpuqCshxFF190mydK4HuxdEo"
 GEMINI_API_KEY = "gen-lang-client-0546027036"
 
-# --- 2. CUSTOMIZE YOUR PERSONALITY HERE ---
+# Your Render public URL (from your Render dashboard, e.g. https://your-app-name.onrender.com)
+RENDER_URL = "https://YOUR-RENDER-APP-NAME.onrender.com"
+
 YOUR_PERSONALITY = """
 You are a Telegram chatbot modeled after your creator's personality.
 - Style: Direct, witty, grounded, and observant. Talk like a real human texting on Telegram—keep messages natural, punchy, and never sound like a corporate assistant.
@@ -18,12 +19,8 @@ You are a Telegram chatbot modeled after your creator's personality.
 """
 
 client = genai.Client(api_key=GEMINI_API_KEY)
-
 user_chats = {}
-bot_state = {
-    "energy": 100,
-    "cooldown_until": 0
-}
+bot_state = {"energy": 100, "cooldown_until": 0}
 
 def get_user_chat(user_id):
     if user_id not in user_chats:
@@ -32,6 +29,9 @@ def get_user_chat(user_id):
             config=types.GenerateContentConfig(system_instruction=YOUR_PERSONALITY)
         )
     return user_chats[user_id]
+
+app_flask = Flask(__name__)
+telegram_app = Application.builder().token(TELEGRAM_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Hey! I'm awake and ready to talk. What's on your mind?")
@@ -66,23 +66,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = chat.send_message(f"{system_note}\nUser message: {user_text}")
     await update.message.reply_text(response.text)
 
-# Minimal web server to keep Render free tier alive
-app_web = Flask(__name__)
-@app_web.route('/')
-def home():
-    return "Bot is alive!"
+telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-def main():
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    print("Telegram Bot is live with polling!")
-    application.run_polling()
+@app_flask.route('/')
+def home():
+    return "Bot is alive and running on Webhooks!"
+
+@app_flask.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
+    async def process():
+        await telegram_app.initialize()
+        await telegram_app.process_update(update)
+    import asyncio
+    asyncio.run(process())
+    return "OK", 200
 
 if __name__ == "__main__":
-    import threading
-    # Run Flask web server in the background thread
-    threading.Thread(target=lambda: app_web.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000))), daemon=True).start()
-    # Run the Telegram bot polling loop
-    main()
+    import asyncio
+    async def setup_webhook():
+        await telegram_app.initialize()
+        await telegram_app.bot.set_webhook(url=f"{RENDER_URL}/{TELEGRAM_TOKEN}")
+    asyncio.run(setup_webhook())
+    
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host="0.0.0.0", port=port)
