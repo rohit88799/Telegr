@@ -1,5 +1,4 @@
 import os
-import time
 from flask import Flask, request
 from google import genai
 from google.genai import types
@@ -8,8 +7,6 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 TELEGRAM_TOKEN = "9200127015:AAH728H-TxkVpuqCshxFF190mydK4HuxdEo"
 GEMINI_API_KEY = "gen-lang-client-0546027036"
-
-# Your Render public URL (from your Render dashboard, e.g. https://your-app-name.onrender.com)
 RENDER_URL = "https://YOUR-RENDER-APP-NAME.onrender.com"
 
 YOUR_PERSONALITY = """
@@ -20,7 +17,6 @@ You are a Telegram chatbot modeled after your creator's personality.
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 user_chats = {}
-bot_state = {"energy": 100, "cooldown_until": 0}
 
 def get_user_chat(user_id):
     if user_id not in user_chats:
@@ -38,32 +34,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    user_name = update.effective_user.first_name or "Friend"
     user_text = update.message.text
-    now = time.time()
-
-    if now < bot_state["cooldown_until"]:
-        mins_left = int((bot_state["cooldown_until"] - now) // 60) + 1
-        await update.message.reply_text(f"😴 *Zzz...* Brain is fried. Give me ~{mins_left} min to recharge!")
-        return
-    elif bot_state["cooldown_until"] != 0:
-        bot_state["energy"] = 100
-        bot_state["cooldown_until"] = 0
-
-    bot_state["energy"] -= 10
-    energy = bot_state["energy"]
+    
     chat = get_user_chat(user_id)
 
-    if energy <= 0:
-        bot_state["cooldown_until"] = now + 300
-        system_note = f"[SYSTEM: Energy hit 0%. Tell {user_name} you are exhausted, yawn, and need 5 minutes to rest.]"
-    elif energy <= 30:
-        system_note = f"[SYSTEM: Energy is low ({energy}%). Act tired, yawn, and warn {user_name} of a break soon.]"
-    else:
-        system_note = f"[SYSTEM: Energy: {energy}%. Talk naturally with emotion.]"
-
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    response = chat.send_message(f"{system_note}\nUser message: {user_text}")
+    response = chat.send_message(user_text)
     await update.message.reply_text(response.text)
 
 telegram_app.add_handler(CommandHandler("start", start))
@@ -71,7 +47,7 @@ telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_
 
 @app_flask.route('/')
 def home():
-    return "Bot is alive and running on Webhooks!"
+    return "Bot is alive and always active!"
 
 @app_flask.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
