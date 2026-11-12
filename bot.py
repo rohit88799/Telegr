@@ -8,7 +8,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 # --- 1. PASTE YOUR KEYS HERE ---
 TELEGRAM_TOKEN = "9200127015:AAH728H-TxkVpuqCshxFF190mydK4HuxdEo"
-GEMINI_API_KEY = "AQ.Ab8RN6JGlWlNmn-KiPjKMgptwW_KUZ64GPHFWQATPZbtUn0QJg"
+GEMINI_API_KEY = "gen-lang-client-0546027036"
 
 # --- 2. CUSTOMIZE YOUR PERSONALITY HERE ---
 YOUR_PERSONALITY = """
@@ -66,20 +66,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = chat.send_message(f"{system_note}\nUser message: {user_text}")
     await update.message.reply_text(response.text)
 
-# Minimal web server so Render free tier keeps the service alive
+# Minimal web server to keep Render free tier alive
 app_web = Flask(__name__)
 @app_web.route('/')
 def home():
     return "Bot is alive!"
 
-def run_bot():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("Telegram Bot is live!")
-    app.run_polling()
+def main():
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    print("Telegram Bot is live with polling!")
+    application.run_polling()
 
 if __name__ == "__main__":
     import threading
-    threading.Thread(target=run_bot, daemon=True).start()
-    app_web.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    # Run Flask web server in the background thread
+    threading.Thread(target=lambda: app_web.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000))), daemon=True).start()
+    # Run the Telegram bot polling loop
+    main()
